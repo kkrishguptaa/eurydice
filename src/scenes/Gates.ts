@@ -140,7 +140,7 @@ export class Gates extends Scene {
         `Inventory: ${this.gameState.inventory.join(', ')}`,
         {
           fontFamily: 'UnifrakturCook',
-          fontSize: '24px',
+          fontSize: '25px',
           color: '#ffffff',
           stroke: '#000000',
           strokeThickness: 3,
