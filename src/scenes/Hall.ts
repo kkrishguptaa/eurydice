@@ -168,7 +168,9 @@ export class Hall extends Scene {
     };
 
     this.input.keyboard?.on('keydown-SPACE', () => {
-      if (this.isNearHades && !this.dialogueManager.isActive) {
+      if (this.canProgress && !this.dialogueManager.isActive) {
+        this.nextScene();
+      } else if (this.isNearHades && !this.dialogueManager.isActive) {
         if (
           !this.gameState.inventory.includes('lyre') ||
           !this.gameState.inventory.includes('bone')
@@ -177,8 +179,6 @@ export class Hall extends Scene {
         } else {
           this.startDialogue();
         }
-      } else if (this.canProgress && !this.dialogueManager.isActive) {
-        this.nextScene();
       }
     });
 

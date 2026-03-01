@@ -185,10 +185,10 @@ export class RiverStyx extends Scene {
 
     // Interaction key
     this.input.keyboard?.on('keydown-SPACE', () => {
-      if (this.isNearCharon && !this.dialogueManager.isActive) {
-        this.startDialogue();
-      } else if (this.canProgress && !this.dialogueManager.isActive) {
+      if (this.canProgress && !this.dialogueManager.isActive) {
         this.nextScene();
+      } else if (this.isNearCharon && !this.dialogueManager.isActive) {
+        this.startDialogue();
       }
     });
 

@@ -171,14 +171,14 @@ export class Gates extends Scene {
     };
 
     this.input.keyboard?.on('keydown-SPACE', () => {
-      if (this.isNearCerberus && !this.dialogueManager.isActive) {
+      if (this.canProgress && !this.dialogueManager.isActive) {
+        this.nextScene();
+      } else if (this.isNearCerberus && !this.dialogueManager.isActive) {
         if (!this.gameState.inventory.includes('coin')) {
           this.showMissingItemMessage();
         } else {
           this.startDialogue();
         }
-      } else if (this.canProgress && !this.dialogueManager.isActive) {
-        this.nextScene();
       }
     });
 

@@ -55,11 +55,14 @@ export class DialogueManager {
 
   dialogueBox: GameObjects.Graphics;
   dialogueText: GameObjects.Text;
-  inputField: Phaser.GameObjects.DOMElement | null = null;
   messageHistory: DialogueMessage[] = [];
   historyContainer: GameObjects.Container;
   historyTexts: GameObjects.Text[] = [];
   promptText: GameObjects.Text;
+  options: string[] = [];
+  optionTexts: GameObjects.Text[] = [];
+  selectedOptionIndex = 0;
+  optionHintText: GameObjects.Text;
   isWaitingForResponse = false;
 
   onProgressionAllowed?: () => void;
@@ -69,7 +72,7 @@ export class DialogueManager {
     this.scene = scene;
     this.gameState = gameState;
 
-    const boxHeight = 250;
+    const boxHeight = 380;
     const boxY = HEIGHT - boxHeight - 20;
 
     this.dialogueBox = scene.add.graphics();
@@ -80,16 +83,53 @@ export class DialogueManager {
     this.dialogueBox.setDepth(10);
 
     this.dialogueText = scene.add
-      .text(80, boxY + 30, '', {
+      .text(80, boxY + 26, '', {
         fontFamily: 'UnifrakturCook',
-        fontSize: '32px',
+        fontSize: '42px',
         color: '#ffffff',
         wordWrap: { width: WIDTH - 160 },
       })
       .setDepth(11);
 
-    this.historyContainer = scene.add.container(80, 80);
+    this.historyContainer = scene.add.container(80, 70);
     this.historyContainer.setDepth(9);
+
+    const optionStartY = boxY + 170;
+    for (let i = 0; i < 3; i++) {
+      const optionText = scene.add
+        .text(100, optionStartY + i * 56, '', {
+          fontFamily: 'UnifrakturCook',
+          fontSize: '34px',
+          color: '#dddddd',
+          wordWrap: { width: WIDTH - 200 },
+        })
+        .setDepth(12)
+        .setInteractive({ useHandCursor: true });
+
+      optionText.on('pointerdown', () => {
+        if (!this.isActive || this.isWaitingForResponse) return;
+        this.selectedOptionIndex = i;
+        this.renderOptions();
+        this.selectCurrentOption();
+      });
+
+      optionText.on('pointerover', () => {
+        if (!this.isActive || this.isWaitingForResponse) return;
+        this.selectedOptionIndex = i;
+        this.renderOptions();
+      });
+
+      this.optionTexts.push(optionText);
+    }
+
+    this.optionHintText = scene.add
+      .text(WIDTH / 2, HEIGHT - 24, 'Use W/S or ↑/↓ then ENTER or SPACE (or click)', {
+        fontFamily: 'UnifrakturCook',
+        fontSize: '24px',
+        color: '#bbbbbb',
+      })
+      .setOrigin(0.5)
+      .setDepth(12);
 
     this.promptText = scene.add
       .text(WIDTH / 2, HEIGHT - 50, 'Press E to close dialogue', {
@@ -100,7 +140,6 @@ export class DialogueManager {
       .setOrigin(0.5)
       .setDepth(12);
 
-    this.createInputField(boxY + boxHeight - 70);
     this.hide();
 
     // Close dialogue with E key
@@ -109,88 +148,118 @@ export class DialogueManager {
         this.closeDialogue();
       }
     });
+
+    scene.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
+      if (!this.isActive || this.isWaitingForResponse) return;
+
+      switch (event.code) {
+        case 'ArrowUp':
+        case 'KeyW':
+          this.moveSelection(-1);
+          break;
+        case 'ArrowDown':
+        case 'KeyS':
+          this.moveSelection(1);
+          break;
+        case 'Enter':
+        case 'Space':
+          this.selectCurrentOption();
+          break;
+        case 'Digit1':
+          this.selectOptionByIndex(0);
+          break;
+        case 'Digit2':
+          this.selectOptionByIndex(1);
+          break;
+        case 'Digit3':
+          this.selectOptionByIndex(2);
+          break;
+      }
+    });
   }
 
-  createInputField(y: number) {
-    const inputHTML = `
-			<div style="display: flex; align-items: center; width: ${WIDTH - 200}px;">
-				<input
-					type="text"
-					id="dialogue-input"
-					placeholder="Type your response..."
-					style="
-						flex: 1;
-						padding: 12px 16px;
-						font-family: 'UnifrakturCook', serif;
-						font-size: 24px;
-						background: #1b1b1c;
-						color: #ffffff;
-						border: 2px solid #ffffff;
-						border-radius: 8px;
-						outline: none;
-					"
-				/>
-				<button
-					id="dialogue-submit"
-					style="
-						margin-left: 12px;
-						padding: 12px 24px;
-						font-family: 'UnifrakturCook', serif;
-						font-size: 24px;
-						background: #ffffff;
-						color: #1b1b1c;
-						border: none;
-						border-radius: 8px;
-						cursor: pointer;
-					"
-				>Send</button>
-			</div>
-		`;
-
-    this.inputField = this.scene.add
-      .dom(WIDTH / 2, y, 'div')
-      .createFromHTML(inputHTML)
-      .setDepth(12);
-
-    const input = document.getElementById('dialogue-input') as HTMLInputElement;
-    const button = document.getElementById('dialogue-submit');
-
-    if (input && button) {
-      const submitHandler = () => this.handlePlayerInput();
-
-      button.addEventListener('click', submitHandler);
-      input.addEventListener('keydown', (e: KeyboardEvent) => {
-        if (e.key === 'Enter') {
-          submitHandler();
-        }
-      });
+  buildOptions() {
+    if (!this.currentCharacter) {
+      this.options = [];
+      return;
     }
+
+    const characterName = this.currentCharacter.name;
+    const turnCount = this.gameState.conversationHistory.filter(
+      (msg) => msg.character === this.currentCharacter?.id,
+    ).length;
+
+    const stage = Math.min(2, turnCount);
+    const optionSets: Array<[string, string, string]> = [
+      [
+        `“${characterName}, hear my plea for Eurydice.”`,
+        '“I came with music, not steel.”',
+        '“Tell me what you require of me.”',
+      ],
+      [
+        '“My love is true. Test me if you must.”',
+        '“I will pay any fair price for passage.”',
+        '“Listen once more to my vow.”',
+      ],
+      [
+        '“Grant me passage, and my song will honor your name.”',
+        '“I accept your terms. I will not fail them.”',
+        '“For Eurydice, I ask your final mercy.”',
+      ],
+    ];
+
+    this.options = [...optionSets[stage]];
+    this.selectedOptionIndex = Phaser.Math.Clamp(
+      this.selectedOptionIndex,
+      0,
+      this.options.length - 1,
+    );
   }
 
-  async handlePlayerInput() {
-    const input = document.getElementById('dialogue-input') as HTMLInputElement;
-    const button = document.getElementById(
-      'dialogue-submit',
-    ) as HTMLButtonElement | null;
+  renderOptions() {
+    this.optionTexts.forEach((text, index) => {
+      const option = this.options[index] ?? '';
+      const selected = index === this.selectedOptionIndex;
 
+      text.setText(option ? `${index + 1}. ${option}` : '');
+      text.setStyle({
+        color: selected ? '#ffff88' : '#dddddd',
+        stroke: selected ? '#ffffff' : '#000000',
+        strokeThickness: selected ? 2 : 0,
+      });
+      text.setVisible(this.isActive && Boolean(option));
+    });
+  }
+
+  moveSelection(delta: number) {
+    if (this.options.length === 0) return;
+
+    this.selectedOptionIndex =
+      (this.selectedOptionIndex + delta + this.options.length) %
+      this.options.length;
+    this.renderOptions();
+  }
+
+  selectOptionByIndex(index: number) {
+    if (index < 0 || index >= this.options.length) return;
+    this.selectedOptionIndex = index;
+    this.renderOptions();
+    this.selectCurrentOption();
+  }
+
+  async selectCurrentOption() {
     if (
-      !input ||
-      !input.value.trim() ||
       !this.currentCharacter ||
-      this.isWaitingForResponse
+      this.isWaitingForResponse ||
+      this.options.length === 0
     ) {
       return;
     }
 
-    const playerMessage = input.value.trim();
-    input.value = '';
+    const playerMessage = this.options[this.selectedOptionIndex];
+
     this.isWaitingForResponse = true;
-    input.disabled = true;
-    if (button) {
-      button.disabled = true;
-      button.style.opacity = '0.7';
-      button.style.cursor = 'not-allowed';
-    }
+    this.optionHintText.setText('...');
 
     this.addMessage({
       speaker: 'Orpheus',
@@ -225,16 +294,14 @@ export class DialogueManager {
 
     if (canProgress && this.onProgressionAllowed) {
       this.onProgressionAllowed();
+      this.closeDialogue();
     }
 
     this.isWaitingForResponse = false;
-    input.disabled = false;
-    input.focus();
-    if (button) {
-      button.disabled = false;
-      button.style.opacity = '1';
-      button.style.cursor = 'pointer';
-    }
+    this.optionHintText.setText('Use W/S or ↑/↓ then ENTER or SPACE (or click)');
+
+    this.buildOptions();
+    this.renderOptions();
   }
 
   async characterResponse(
@@ -302,17 +369,17 @@ export class DialogueManager {
     });
     this.historyTexts = [];
 
-    const maxVisibleMessages = 4;
+    const maxVisibleMessages = 3;
     const visibleMessages = this.messageHistory.slice(-maxVisibleMessages);
 
     visibleMessages.forEach((msg, index) => {
       const color = msg.isPlayer ? '#88ccff' : '#ffcc88';
       const text = this.scene.add
-        .text(0, index * 50, `${msg.speaker}: ${msg.text}`, {
+        .text(0, index * 62, `${msg.speaker}: ${msg.text}`, {
           fontFamily: 'UnifrakturCook',
-          fontSize: '24px',
+          fontSize: '30px',
           color,
-          wordWrap: { width: WIDTH - 200 },
+          wordWrap: { width: WIDTH - 220 },
         })
         .setDepth(9);
 
@@ -329,6 +396,8 @@ export class DialogueManager {
   setCharacter(character: Character) {
     this.currentCharacter = character;
     this.clearHistory();
+    this.buildOptions();
+    this.renderOptions();
 
     this.dialogueText.setText(
       `You are now speaking with ${character.name}\n${character.description}`,
@@ -339,18 +408,21 @@ export class DialogueManager {
     this.isActive = true;
     this.dialogueBox.setVisible(true);
     this.dialogueText.setVisible(true);
-    if (this.inputField) this.inputField.setVisible(true);
     this.historyContainer.setVisible(true);
     this.promptText.setVisible(true);
+    this.optionHintText.setVisible(true);
+    this.buildOptions();
+    this.renderOptions();
   }
 
   hide() {
     this.isActive = false;
     this.dialogueBox.setVisible(false);
     this.dialogueText.setVisible(false);
-    if (this.inputField) this.inputField.setVisible(false);
     this.historyContainer.setVisible(false);
     this.promptText.setVisible(false);
+    this.optionHintText.setVisible(false);
+    this.optionTexts.forEach((text) => text.setVisible(false));
   }
 
   closeDialogue() {
@@ -363,7 +435,8 @@ export class DialogueManager {
   destroy() {
     this.dialogueBox.destroy();
     this.dialogueText.destroy();
-    if (this.inputField) this.inputField.destroy();
     this.historyContainer.destroy();
+    this.optionHintText.destroy();
+    this.optionTexts.forEach((text) => text.destroy());
   }
 }
