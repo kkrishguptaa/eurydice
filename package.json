@@ -1,12 +1,22 @@
 {
   "name": "eurydice",
-  "module": "index.ts",
-  "type": "module",
-  "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
+  "description": "The story of Orpheus and Eurydice, but different each time, and in an RPG.",
+  "version": "0.1.0",
+  "repository": "kkrishguptaa/eurydice",
+  "author": "Krish Gupta <m.krishggupta@icloud.com> (https://krishg.com/)",
+  "license": "MIT",
+  "homepage": "https://eurydice.krishg.com",
+  "scripts": {
+    "dev": "bunx --bun vite --config vite/config.dev.mjs",
+    "build": "bunx --bun vite build --config vite/config.prod.mjs"
   },
-  "peerDependencies": {
-    "typescript": "^5"
+  "devDependencies": {
+    "@types/bun": "1.3.8",
+    "terser": "5.46.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.1"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
   }
 }
